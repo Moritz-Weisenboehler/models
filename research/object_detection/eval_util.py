@@ -1098,7 +1098,9 @@ def evaluator_options_from_eval_config(eval_config):
     if eval_metric_fn_key in ('coco_detection_metrics', 'coco_mask_metrics'):
       evaluator_options[eval_metric_fn_key] = {
           'include_metrics_per_category': (
-              eval_config.include_metrics_per_category)
+              eval_config.include_metrics_per_category),
+          'all_metrics_per_category': (
+              eval_config.all_metrics_per_category)
       }
     elif eval_metric_fn_key == 'precision_at_recall_detection_metrics':
       evaluator_options[eval_metric_fn_key] = {
