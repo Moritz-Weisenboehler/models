@@ -286,45 +286,184 @@ class COCOEvalWrapper(cocoeval.COCOeval):
           category_name)] = self.stats[8]
       summary_metrics['Recall/AR@100 (large) ByCategory/{}'.format(
           category_name)] = self.stats[9]
-    if not include_metrics_per_category:
+
+    # Adjusted to allow per category evaluation (include_metrics_per_category)
+    # according to https://github.com/tensorflow/models/issues/4778#issuecomment-430262110
+    if not include_metrics_per_category or self.GetAgnosticMode():
       return summary_metrics, {}
-    if not hasattr(self, 'category_stats'):
-      raise ValueError('Category stats do not exist')
+    self.summarize_per_category()
     per_category_ap = OrderedDict([])
-    if self.GetAgnosticMode():
-      return summary_metrics, per_category_ap
     for category_index, category_id in enumerate(self.GetCategoryIdList()):
       category = self.GetCategory(category_id)['name']
-      # Kept for backward compatilbility
-      per_category_ap['PerformanceByCategory/mAP/{}'.format(
-          category)] = self.category_stats[0][category_index]
+    # Kept for backward compatilbility
+      per_category_ap['Precision/mAP/{}'.format(
+        category)] = self.category_stats[0][category_index]
       if all_metrics_per_category:
-        per_category_ap['Precision mAP ByCategory/{}'.format(
-            category)] = self.category_stats[0][category_index]
-        per_category_ap['Precision mAP@.50IOU ByCategory/{}'.format(
+        per_category_ap['Precision/mAP@.50IOU/{}'.format(
             category)] = self.category_stats[1][category_index]
-        per_category_ap['Precision mAP@.75IOU ByCategory/{}'.format(
+        per_category_ap['Precision/mAP@.75IOU/{}'.format(
             category)] = self.category_stats[2][category_index]
-        per_category_ap['Precision mAP (small) ByCategory/{}'.format(
+        per_category_ap['Precision/mAP (small)/{}'.format(
             category)] = self.category_stats[3][category_index]
-        per_category_ap['Precision mAP (medium) ByCategory/{}'.format(
+        per_category_ap['Precision/mAP (medium)/{}'.format(
             category)] = self.category_stats[4][category_index]
-        per_category_ap['Precision mAP (large) ByCategory/{}'.format(
+        per_category_ap['Precision/mAP (large)/{}'.format(
             category)] = self.category_stats[5][category_index]
-        per_category_ap['Recall AR@1 ByCategory/{}'.format(
+        per_category_ap['Recall/AR@1/{}'.format(
             category)] = self.category_stats[6][category_index]
-        per_category_ap['Recall AR@10 ByCategory/{}'.format(
+        per_category_ap['Recall/AR@10/{}'.format(
             category)] = self.category_stats[7][category_index]
-        per_category_ap['Recall AR@100 ByCategory/{}'.format(
+        per_category_ap['Recall/AR@100/{}'.format(
             category)] = self.category_stats[8][category_index]
-        per_category_ap['Recall AR@100 (small) ByCategory/{}'.format(
+        per_category_ap['Recall/AR@100 (small)/{}'.format(
             category)] = self.category_stats[9][category_index]
-        per_category_ap['Recall AR@100 (medium) ByCategory/{}'.format(
+        per_category_ap['Recall/AR@100 (medium)/{}'.format(
             category)] = self.category_stats[10][category_index]
-        per_category_ap['Recall AR@100 (large) ByCategory/{}'.format(
+        per_category_ap['Recall/AR@100 (large)/{}'.format(
             category)] = self.category_stats[11][category_index]
 
     return summary_metrics, per_category_ap
+
+  # Added to allow per category evaluation (include_metrics_per_category)
+  # according to https://github.com/tensorflow/models/issues/4778#issuecomment-430262110
+  def summarize_per_category(self):
+    '''
+    Compute and display summary metrics for evaluation results *per category*.
+    Note this functin can *only* be applied on the default parameter setting
+    '''
+    def _summarize_category(ap=1, iouThr=None, categoryId=None, areaRng='all', maxDets=100):
+      aind = [i for i, aRng in enumerate(
+          self.params.areaRngLbl) if aRng == areaRng]
+      mind = [i for i, mDet in enumerate(
+          self.params.maxDets) if mDet == maxDets]
+
+      if ap == 1:
+        s = self.eval['precision']
+        if iouThr is not None:
+          t = np.where(iouThr == self.params.iouThrs)[0]
+          s = s[t]
+        if categoryId is not None:
+          category_index = [i for i, i_catId in enumerate(
+              self.params.catIds) if i_catId == categoryId]
+          s = s[:, :, category_index, aind, mind]
+        else:
+          s = s[:, :, :, aind, mind]
+      else:
+        s = self.eval['recall']
+        if iouThr is not None:
+          t = np.where(iouThr == self.params.iouThrs)[0]
+          s = s[t]
+        if categoryId is not None:
+          category_index = [i for i, i_catId in enumerate(
+              self.params.catIds) if i_catId == categoryId]
+          s = s[:, category_index, aind, mind]
+        else:
+          s = s[:, :, aind, mind]
+      if len(s[s > -1]) == 0:
+        mean_s = -1
+      else:
+        mean_s = np.mean(s[s > -1])
+      return mean_s
+
+    def _summarizeDets_per_category():
+      category_stats = np.zeros((12, len(self.params.catIds)))
+      for category_index, category_id in enumerate(self.params.catIds):
+        category_stats[0][category_index] = _summarize_category(1,
+                                                                categoryId=category_id)
+        category_stats[1][category_index] = _summarize_category(1,
+                                                                iouThr=.5,
+                                                                maxDets=self.params.maxDets[2],
+                                                                categoryId=category_id)
+        category_stats[2][category_index] = _summarize_category(1,
+                                                                iouThr=.75,
+                                                                maxDets=self.params.maxDets[2],
+                                                                categoryId=category_id)
+        category_stats[3][category_index] = _summarize_category(1,
+                                                                areaRng='small',
+                                                                maxDets=self.params.maxDets[2],
+                                                                categoryId=category_id)
+        category_stats[4][category_index] = _summarize_category(1,
+                                                                areaRng='medium',
+                                                                maxDets=self.params.maxDets[2],
+                                                                categoryId=category_id)
+        category_stats[5][category_index] = _summarize_category(1,
+                                                                areaRng='large',
+                                                                maxDets=self.params.maxDets[2],
+                                                                categoryId=category_id)
+        category_stats[6][category_index] = _summarize_category(0,
+                                                                maxDets=self.params.maxDets[0],
+                                                                categoryId=category_id)
+        category_stats[7][category_index] = _summarize_category(0,
+                                                                maxDets=self.params.maxDets[1],
+                                                                categoryId=category_id)
+        category_stats[8][category_index] = _summarize_category(0,
+                                                                maxDets=self.params.maxDets[2],
+                                                                categoryId=category_id)
+        category_stats[9][category_index] = _summarize_category(0,
+                                                                areaRng='small',
+                                                                maxDets=self.params.maxDets[2],
+                                                                categoryId=category_id)
+        category_stats[10][category_index] = _summarize_category(0,
+                                                                areaRng='medium',
+                                                                maxDets=self.params.maxDets[2],
+                                                                categoryId=category_id)
+        category_stats[11][category_index] = _summarize_category(0,
+                                                                areaRng='large',
+                                                                maxDets=self.params.maxDets[2],
+                                                                categoryId=category_id)
+        return category_stats
+
+    def _summarizeKps_per_category():
+      category_stats = np.zeros((10, len(self.params.catIds)))
+      for category_index, category_id in self.params.catIds:
+        category_stats[0][category_index] = _summarize_category(1,
+                                                                maxDets=20,
+                                                                categoryId=category_id)
+        category_stats[1][category_index] = _summarize_category(1,
+                                                                maxDets=20,
+                                                                iouThr=.5,
+                                                                categoryId=category_id)
+        category_stats[2][category_index] = _summarize_category(1,
+                                                                maxDets=20,
+                                                                iouThr=.75,
+                                                                categoryId=category_id)
+        category_stats[3][category_index] = _summarize_category(1,
+                                                                maxDets=20,
+                                                                areaRng='medium',
+                                                                categoryId=category_id)
+        category_stats[4][category_index] = _summarize_category(1,
+                                                                maxDets=20,
+                                                                areaRng='large',
+                                                                categoryId=category_id)
+        category_stats[5][category_index] = _summarize_category(0,
+                                                                maxDets=20,
+                                                                categoryId=category_id)
+        category_stats[6][category_index] = _summarize_category(0,
+                                                                maxDets=20,
+                                                                iouThr=.5,
+                                                                categoryId=category_id)
+        category_stats[7][category_index] = _summarize_category(0,
+                                                                maxDets=20,
+                                                                iouThr=.75,
+                                                                categoryId=category_id)
+        category_stats[8][category_index] = _summarize_category(0,
+                                                                maxDets=20,
+                                                                areaRng='medium',
+                                                                categoryId=category_id)
+        category_stats[9][category_index] = _summarize_category(0,
+                                                                maxDets=20,
+                                                                areaRng='large',
+                                                                categoryId=category_id)
+        return category_stats
+
+    if not self.eval:
+      raise Exception('Please run accumulate() first')
+    iouType = self.params.iouType
+    if iouType == 'segm' or iouType == 'bbox':
+      summarize_per_category = _summarizeDets_per_category
+    elif iouType == 'keypoints':
+      summarize_per_category = _summarizeKps_per_category
+    self.category_stats = summarize_per_category()
 
 
 def _ConvertBoxToCOCOFormat(box):
