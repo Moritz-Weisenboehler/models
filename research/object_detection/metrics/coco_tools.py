@@ -363,6 +363,7 @@ class COCOEvalWrapper(cocoeval.COCOeval):
         mean_s = -1
       else:
         mean_s = np.mean(s[s > -1])
+        
       return mean_s
 
     def _summarizeDets_per_category():
@@ -411,7 +412,7 @@ class COCOEvalWrapper(cocoeval.COCOeval):
                                                                 areaRng='large',
                                                                 maxDets=self.params.maxDets[2],
                                                                 categoryId=category_id)
-        return category_stats
+      return category_stats
 
     def _summarizeKps_per_category():
       category_stats = np.zeros((10, len(self.params.catIds)))
@@ -454,7 +455,7 @@ class COCOEvalWrapper(cocoeval.COCOeval):
                                                                 maxDets=20,
                                                                 areaRng='large',
                                                                 categoryId=category_id)
-        return category_stats
+      return category_stats
 
     if not self.eval:
       raise Exception('Please run accumulate() first')
