@@ -34,6 +34,7 @@ from object_detection.core import keypoint_ops
 from object_detection.core import standard_fields as fields
 from object_detection.metrics import coco_evaluation
 from object_detection.metrics import lvis_evaluation
+from object_detection.metrics import pick_evaluation
 from object_detection.protos import eval_pb2
 from object_detection.utils import label_map_util
 from object_detection.utils import object_detection_evaluation
@@ -74,6 +75,8 @@ EVAL_METRICS_CLASS_DICT = {
         object_detection_evaluation.WeightedPascalInstanceSegmentationEvaluator,
     'oid_V2_detection_metrics':
         object_detection_evaluation.OpenImagesDetectionEvaluator,
+    'pick_metrics':
+        pick_evaluation.PickEvaluator,
 }
 
 EVAL_DEFAULT_METRIC = 'coco_detection_metrics'
