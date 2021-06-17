@@ -712,6 +712,10 @@ def train_loop(
             manager.save()
             checkpointed_step = int(global_step.value())
 
+  # Always save final checkpoint
+  if checkpointed_step != int(global_step.value()):
+    manager.save()
+
   # Remove the checkpoint directories of the non-chief workers that
   # MultiWorkerMirroredStrategy forces us to save during sync distributed
   # training.
