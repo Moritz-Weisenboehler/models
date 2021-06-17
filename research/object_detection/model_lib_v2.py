@@ -836,7 +836,7 @@ def eager_eval_loop(
     use_tpu=False,
     postprocess_on_cpu=False,
     global_step=None,
-    ):
+    return_eval_data=False):
   """Evaluate the model eagerly on the evaluation dataset.
 
   This method will compute the evaluation metrics specified in the configs on
@@ -854,9 +854,11 @@ def eager_eval_loop(
       the CPU when using a TPU to execute the model.
     global_step: A variable containing the training step this model was trained
       to. Used for logging purposes.
+    return_eval_data: Whether to additionally return the evaluation data.
 
   Returns:
     A dict of evaluation metrics representing the results of this evaluation.
+    If return_eval_data a tuple of evaluation metrics and data.
   """
   del postprocess_on_cpu
   train_config = configs['train_config']
@@ -931,6 +933,8 @@ def eager_eval_loop(
 
   strategy = tf.compat.v2.distribute.get_strategy()
 
+  eval_data = []
+
   for i, (features, labels) in enumerate(eval_dataset):
     try:
       (losses_dict, prediction_dict, groundtruth_dict,
@@ -955,6 +959,8 @@ def eager_eval_loop(
     for loss_key, loss_tensor in iter(losses_dict.items()):
       losses_dict[loss_key] = strategy.reduce(tf.distribute.ReduceOp.MEAN,
                                               loss_tensor, None)
+    if return_eval_data:
+      eval_data.append(eval_dict)
     if class_agnostic:
       category_index = agnostic_categories
     else:
@@ -1014,6 +1020,8 @@ def eager_eval_loop(
   for k in eval_metrics:
     tf.compat.v2.summary.scalar(k, eval_metrics[k], step=global_step)
     tf.logging.info('\t+ %s: %f', k, eval_metrics[k])
+  if return_eval_data:
+    return eval_metrics, eval_data
   return eval_metrics
 
 
